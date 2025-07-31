@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../models/game_state.dart';
+import '../models/player.dart';
+import '../models/role.dart';
 import 'player_role_screen.dart';
 import 'voting_screen.dart';
 import 'game_over_screen.dart';
@@ -16,6 +18,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   String? _selectedPlayerId;
+  String? _selectedTargetId;
 
   @override
   Widget build(BuildContext context) {
@@ -172,25 +175,30 @@ class _GameScreenState extends State<GameScreen> {
     if (role == null) {
       return _nightContinueButton(gameProvider);
     }
-    switch (role.id) {
-      case 'hombre_lobo':
-        // Permitir seleccionar a un jugador para atacar (solo hombres lobo ven los votos)
-        return _nightSelectTarget(gameProvider, player, 'Selecciona a la víctima de los hombres lobo');
-      case 'doctor':
-        // Permitir seleccionar a un jugador para proteger
-        return _nightSelectTarget(gameProvider, player, 'Selecciona a quién proteger esta noche');
-      case 'vidente':
-        // Permitir seleccionar a un jugador para investigar
-        return _nightSelectTarget(gameProvider, player, 'Selecciona a quién investigar esta noche');
-      default:
-        // Aldeano y otros roles sin acción: solo continuar
-        return _nightContinueButton(gameProvider);
+    
+    // Para roles con acciones especiales
+    if (role.id == 'hombre_lobo' || role.id == 'doctor' || role.id == 'vidente') {
+      String actionText = '';
+      switch (role.id) {
+        case 'hombre_lobo':
+          actionText = 'Selecciona a la víctima de los hombres lobo';
+          break;
+        case 'doctor':
+          actionText = 'Selecciona a quién proteger esta noche';
+          break;
+        case 'vidente':
+          actionText = 'Selecciona a quién investigar esta noche';
+          break;
+      }
+      return _nightSelectTarget(gameProvider, player, actionText);
     }
+    
+    // Aldeano y otros roles sin acción: solo continuar
+    return _nightContinueButton(gameProvider);
   }
 
   Widget _nightSelectTarget(GameProvider gameProvider, Player player, String title) {
     final alivePlayers = gameProvider.getAlivePlayers().where((p) => p.id != player.id).toList();
-    String? selectedTargetId;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -204,26 +212,49 @@ class _GameScreenState extends State<GameScreen> {
         const SizedBox(height: 16),
         Text(title, style: const TextStyle(color: Colors.white70, fontSize: 16)),
         const SizedBox(height: 16),
-        ...alivePlayers.map((target) => ListTile(
-          leading: CircleAvatar(
-            backgroundImage: target.imagePath != null ? FileImage(File(target.imagePath!)) : null,
-            child: target.imagePath == null ? Text(target.name[0].toUpperCase(), style: const TextStyle(color: Colors.white)) : null,
+        Expanded(
+          child: ListView.builder(
+            itemCount: alivePlayers.length,
+            itemBuilder: (context, index) {
+              final target = alivePlayers[index];
+              return Card(
+                color: _selectedTargetId == target.id 
+                    ? const Color(0xFFe94560).withOpacity(0.3)
+                    : Colors.white.withOpacity(0.1),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage: target.imagePath != null ? FileImage(File(target.imagePath!)) : null,
+                    child: target.imagePath == null ? Text(target.name[0].toUpperCase(), style: const TextStyle(color: Colors.white)) : null,
+                  ),
+                  title: Text(target.name, style: const TextStyle(color: Colors.white)),
+                  onTap: () {
+                    setState(() {
+                      _selectedTargetId = target.id;
+                    });
+                  },
+                  trailing: _selectedTargetId == target.id ? const Icon(Icons.check, color: Colors.green) : null,
+                ),
+              );
+            },
           ),
-          title: Text(target.name, style: const TextStyle(color: Colors.white)),
-          selected: selectedTargetId == target.id,
-          onTap: () {
-            selectedTargetId = target.id;
-          },
-          trailing: selectedTargetId == target.id ? const Icon(Icons.check, color: Colors.green) : null,
-        )),
+        ),
         const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: () {
-            if (selectedTargetId != null) {
-              gameProvider.registerNightAction(player.id, selectedTargetId);
-            }
-          },
-          child: const Text('Confirmar'),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _selectedTargetId != null ? () {
+              gameProvider.registerNightAction(player.id, _selectedTargetId);
+              setState(() {
+                _selectedTargetId = null;
+              });
+            } : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Confirmar'),
+          ),
         ),
       ],
     );

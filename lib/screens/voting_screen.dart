@@ -286,6 +286,10 @@ class _VotingScreenState extends State<VotingScreen> {
 
 // En la pantalla de votación, antes de mostrar la lista de jugadores a votar, mostrar el avatar y nombre del jugador que está votando:
 Widget _buildVotingTurn(GameProvider gameProvider) {
+  if (gameProvider.currentVotingPlayerIndex >= gameProvider.players.length) {
+    return const SizedBox.shrink();
+  }
+  
   final currentPlayer = gameProvider.players[gameProvider.currentVotingPlayerIndex];
   return Column(
     mainAxisAlignment: MainAxisAlignment.center,
